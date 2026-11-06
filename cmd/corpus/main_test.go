@@ -28,17 +28,17 @@ func TestParsePages(t *testing.T) {
 
 func TestSummarize(t *testing.T) {
 	rows := []row{
-		{file: "a.pdf", helloCount: 3, pdfinfoCount: 3},
-		{file: "b.pdf", helloCount: -1, helloErr: "encrypted", pdfinfoCount: 2},
-		{file: "c.pdf", helloCount: -1, helloErr: "encrypted", pdfinfoCount: -1},
-		{file: "d.pdf", helloCount: 4, helloErr: "count mismatch", pdfinfoCount: 5},
-		{file: "e.pdf", helloCount: 2, pdfinfoCount: 7},
-		{file: "f.pdf", helloCount: 2, pdfinfoCount: -1},
+		{file: "a.pdf", pagecountCount: 3, pdfinfoCount: 3},
+		{file: "b.pdf", pagecountCount: -1, pagecountErr: "encrypted", pdfinfoCount: 2},
+		{file: "c.pdf", pagecountCount: -1, pagecountErr: "encrypted", pdfinfoCount: -1},
+		{file: "d.pdf", pagecountCount: 4, pagecountErr: "count mismatch", pdfinfoCount: 5},
+		{file: "e.pdf", pagecountCount: 2, pdfinfoCount: 7},
+		{file: "f.pdf", pagecountCount: 2, pdfinfoCount: -1},
 	}
 	var b strings.Builder
 	summarize(&b, rows)
 	want := "files\t6\nagree\t1\nrefused\t3\n  2\tencrypted\n  1\tcount mismatch\ndisagree\t2\n" +
-		"  file\thello_count\thello_error\tpdfinfo_count\n  e.pdf\t2\t\t7\n  f.pdf\t2\t\t\n"
+		"  file\tpagecount_count\tpagecount_error\tpdfinfo_count\n  e.pdf\t2\t\t7\n  f.pdf\t2\t\t\n"
 	if b.String() != want {
 		t.Errorf("summary:\n%s\nwant:\n%s", b.String(), want)
 	}
@@ -75,7 +75,7 @@ func TestRun(t *testing.T) {
 	if r := rows[0]; r.file != "junk.pdf" || !r.refused() || r.pdfinfoCount != -1 {
 		t.Errorf("junk.pdf row = %+v", r)
 	}
-	if r := rows[1]; r.file != filepath.Join("sub", "three.PDF") || !r.agree() || r.helloCount != 3 {
+	if r := rows[1]; r.file != filepath.Join("sub", "three.PDF") || !r.agree() || r.pagecountCount != 3 {
 		t.Errorf("three.PDF row = %+v", r)
 	}
 	out := filepath.Join(dir, "corpus.tsv")
@@ -87,7 +87,7 @@ func TestRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	if lines := strings.Split(strings.TrimSpace(string(b)), "\n"); len(lines) != 3 ||
-		lines[0] != "file\thello_count\thello_error\tpdfinfo_count" {
+		lines[0] != "file\tpagecount_count\tpagecount_error\tpdfinfo_count" {
 		t.Errorf("tsv:\n%s", b)
 	}
 }

@@ -136,6 +136,12 @@ var adversarial = []struct {
 	{"41-count-missing", variant(func(o map[int]string) {
 		o[2] = "<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] >>"
 	}), 0, "/Pages has no /Count"},
+	// RULE: a reference whose generation the xref doesn't hold is null, whichever order the
+	// references are reached in; a cached object must not answer for another generation.
+	{"42-stale-gen-after", variant(func(o map[int]string) { o[2] = pagesNode("3 0 R 3 1 R", 2) }),
+		0, "missing object referenced: 3 1 R"},
+	{"43-stale-gen-before", variant(func(o map[int]string) { o[2] = pagesNode("3 1 R 3 0 R", 2) }),
+		0, "missing object referenced: 3 1 R"},
 }
 
 // TestAdversarial runs CountPages on each generator's output. -update also writes the files to
@@ -484,4 +490,40 @@ func styledPDF(eol, entryEnd string) []byte {
 	fmt.Fprintf(&w, "trailer%s<< /Size 6 /Root 1 0 R >>%sstartxref%s%d%s%%%%EOF%s",
 		eol, eol, eol, xref, eol, eol)
 	return w.Bytes()
+}
+
+// spreadBomb: pages 3–5 each in their own object stream (6–8), each padded with pad zero bytes
+// after its object. Each stream decodes under the cap alone; together they exceed it.
+func spreadBomb(pad int) []byte {
+	w := newPDF("1.5")
+	o := baseObjs()
+	w.obj(1, o[1])
+	w.obj(2, o[2])
+	rows := [][3]int{{0, 0, 65535}, {1, w.off[1], 0}, {1, w.off[2], 0}}
+	for i, n := range []int{3, 4, 5} {
+		data, first := objStm([]int{n}, []string{page})
+		data = append(data, make([]byte, pad)...)
+		w.stream(6+i, fmt.Sprintf("/Type /ObjStm /N 1 /First %d /Filter /FlateDecode", first),
+			deflate(data))
+		rows = append(rows, [3]int{2, 6 + i, 0})
+	}
+	xs := w.Len()
+	rows = append(rows, [3]int{1, w.off[6], 0}, [3]int{1, w.off[7], 0}, [3]int{1, w.off[8], 0},
+		[3]int{1, xs, 0})
+	w.xrefStream(9, "/Size 10 /Root 1 0 R", rows)
+	return w.Bytes()
+}
+
+// TestDecodedBudget: maxDecoded caps the bytes decoded across the whole document, not per stream,
+// so many small bombs can't add up to an exhausted heap. Lowered here to keep the test fast.
+func TestDecodedBudget(t *testing.T) {
+	b := spreadBomb(400 << 10) // 3 × ~400 KiB
+	if n, err := CountPages(b); err != nil || n != 3 {
+		t.Fatalf("default budget: got %d, %v; want 3", n, err)
+	}
+	defer func(old int) { maxDecoded = old }(maxDecoded)
+	maxDecoded = 1 << 20
+	if n, err := CountPages(b); err == nil || !strings.Contains(err.Error(), "decoded streams exceed") {
+		t.Errorf("1 MiB budget: got %d, %v; want error containing %q", n, err, "decoded streams exceed")
+	}
 }

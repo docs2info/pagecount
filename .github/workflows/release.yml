@@ -8,17 +8,40 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      # Includes TestNoNet, which runs `go list -deps` and so needs go on PATH.
       - run: go test ./...
-      - run: make release-local
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: build
+        run: |
+          set -e
+          mkdir -p dist
+          for os in linux darwin windows; do
+            for arch in amd64 arm64; do
+              ext=
+              [ "$os" = windows ] && ext=.exe
+              echo "build $os/$arch" >&2
+              CGO_ENABLED=0 GOOS=$os GOARCH=$arch \
+                go build -trimpath -ldflags="-s -w" -o "dist/pagecount_${os}_${arch}${ext}" .
+            done
+          done
+      # Bare filenames, so `sha256sum -c checksums.txt` works beside the downloaded binaries.
+      - name: checksums
+        run: cd dist && sha256sum pagecount_* > checksums.txt
       - uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/hello-*
-            dist/SHA256SUMS
+          files: dist/*

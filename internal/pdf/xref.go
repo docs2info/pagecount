@@ -40,9 +40,10 @@ type document struct {
 	b       []byte
 	xref    map[int]xrefEntry
 	trailer Dict
-	cache   map[int]any
+	cache   map[Ref]any // keyed by number and generation: a stale generation resolves to null
 	objstm  map[int]*objStream
 	loading map[int]bool // objects being parsed, to refuse self-referential /Length chains
+	decoded int          // bytes decoded from streams so far, against maxDecoded
 }
 
 // openDocument reads the cross-reference chain ending at the file's startxref: classic tables, xref
@@ -57,7 +58,7 @@ func openDocument(b []byte) (*document, error) {
 		b:       b,
 		xref:    map[int]xrefEntry{},
 		trailer: Dict{},
-		cache:   map[int]any{},
+		cache:   map[Ref]any{},
 		objstm:  map[int]*objStream{},
 		loading: map[int]bool{},
 	}
@@ -209,7 +210,7 @@ func (d *document) readXRefStream(off int) (map[int]xrefEntry, Dict, error) {
 	if !ok || s.Dict["Type"] != Name("XRef") {
 		return nil, nil, errors.New("not a /Type /XRef stream")
 	}
-	data, err := decodeStream(s)
+	data, err := d.decode(s)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -291,7 +292,7 @@ func (d *document) resolve(o any) (any, error) {
 
 // object loads the indirect object r.
 func (d *document) object(r Ref) (any, error) {
-	if o, ok := d.cache[r.Num]; ok {
+	if o, ok := d.cache[r]; ok {
 		return o, nil
 	}
 	e, ok := d.xref[r.Num]
@@ -322,7 +323,7 @@ func (d *document) object(r Ref) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	d.cache[r.Num] = o
+	d.cache[r] = o
 	return o, nil
 }
 
