@@ -26,8 +26,17 @@ go test ./...
 ## Download
 
 Prebuilt binaries for Linux, macOS and Windows (amd64, arm64) are at
-<https://github.com/docs2info/pagecount/releases/latest>. Verify them with `checksums.txt` from the
-same release: `sha256sum -c --ignore-missing checksums.txt`.
+<https://github.com/docs2info/pagecount/releases/latest>, as `.tar.gz` (Windows: `.zip`) archives
+holding `pagecount` and `LICENSE`. Verify with `checksums.txt` from the same release:
+`sha256sum -c --ignore-missing checksums.txt`.
+
+On macOS or Linux:
+
+```sh
+tar xzf pagecount_darwin_arm64.tar.gz
+xattr -d com.apple.quarantine pagecount 2>/dev/null   # macOS, browser download only
+./pagecount FILE.pdf
+```
 
 ## Does it count correctly?
 
