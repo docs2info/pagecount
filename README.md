@@ -1,4 +1,4 @@
-# hello
+# pagecount
 
 Prints the page count of a PDF, or exits with code 2 (`refused`) if it cannot be sure.
 
@@ -23,13 +23,19 @@ go install github.com/docs2info/pagecount@latest
 go test ./...
 ```
 
+## Download
+
+Prebuilt binaries for Linux, macOS and Windows (amd64, arm64) are at
+<https://github.com/docs2info/pagecount/releases/latest>. Verify them with `checksums.txt` from the
+same release: `sha256sum -c --ignore-missing checksums.txt`.
+
 ## Does it count correctly?
 
-The goal is that the page count `hello` prints matches the count from a reference tool, `pdfinfo`
-from Poppler.
+The goal is that the page count `pagecount` prints matches the count from a reference tool,
+`pdfinfo` from Poppler.
 
-`cmd/corpus` runs hello's parser and `pdfinfo` on every PDF in a directory and writes a TSV with
-one row per file: `file`, `hello_count`, `hello_error`, `pdfinfo_count`.
+`cmd/corpus` runs pagecount's parser and `pdfinfo` on every PDF in a directory and writes a TSV
+with one row per file: `file`, `pagecount_count`, `pagecount_error`, `pdfinfo_count`.
 
 ```sh
 go run ./cmd/corpus -o corpus.tsv DIR
@@ -45,9 +51,9 @@ binary links no network packages (`TestNoNet`).
 ## How it counts and when it refuses
 
 A page is a dictionary reached from the trailer `/Root` → `/Pages`, following `/Kids`, whose
-`/Type` is `/Page`; `hello` counts those leaves. It reads the cross-reference data (classic tables,
-xref streams, object streams, incremental updates) rather than scanning bytes. It refuses, with
-exit code 2, rather than guess: encrypted files, no `startxref`, an unresolvable `/Root` or
+`/Type` is `/Page`; `pagecount` counts those leaves. It reads the cross-reference data (classic
+tables, xref streams, object streams, incremental updates) rather than scanning bytes. It refuses,
+with exit code 2, rather than guess: encrypted files, no `startxref`, an unresolvable `/Root` or
 `/Pages`, a malformed page tree, or a root `/Count` that is missing, not an integer, out of range,
 or disagrees with the walked tree.
 

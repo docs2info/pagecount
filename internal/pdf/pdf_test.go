@@ -109,6 +109,19 @@ func TestLexer(t *testing.T) {
 	}
 }
 
+// TestLexerRefuses covers bytes that aren't hex digits: bytes below '0' must not decode as digits.
+func TestLexerRefuses(t *testing.T) {
+	for _, s := range []string{"<0-1>", "<(!>", "<12/>"} {
+		if tok, err := (&lexer{b: []byte(s)}).next(); err == nil {
+			t.Errorf("%q: got %q, want error", s, tok.s)
+		}
+	}
+	// A '#' not followed by two hex digits stays literal and doesn't consume what follows.
+	if tok, _ := (&lexer{b: []byte("/A#2 /B")}).next(); tok.s != "A#2" {
+		t.Errorf("/A#2: got %q, want %q", tok.s, "A#2")
+	}
+}
+
 // TestTIFFPredictor covers /Predictor 2, which the fixtures don't use.
 func TestTIFFPredictor(t *testing.T) {
 	raw := []byte{10, 20, 13, 25, 16, 30, 1, 2, 3, 4, 5, 6} // 2 rows × 3 pixels × 2 colors

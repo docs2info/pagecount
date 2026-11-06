@@ -9,9 +9,9 @@
 //	endstream
 //
 // Decompressed, the data starts with /N pairs "object number, offset" and holds the objects
-// themselves from byte /First on. decodeStream undoes /FlateDecode (zlib) and its predictors
+// themselves from byte /First on. decode undoes /FlateDecode (zlib) and its predictors
 // (§7.4.4, unpredict); loadObjStm reads the pairs into an objStream; fromObjStm parses one object
-// out of it. readXRefStream uses decodeStream for xref streams too.
+// out of it. readXRefStream uses decode for xref streams too.
 
 package pdf
 
@@ -23,8 +23,9 @@ import (
 	"io"
 )
 
-// maxDecoded caps a decoded stream, so a small compressed bomb can't exhaust memory.
-const maxDecoded = 256 << 20
+// maxDecoded caps the bytes decoded from all streams of one document, so compressed bombs can't
+// exhaust memory, whether in one stream or spread across many. A variable so tests can lower it.
+var maxDecoded = 256 << 20
 
 // objStream is a decoded /Type /ObjStm (§7.5.7).
 type objStream struct {
@@ -71,7 +72,7 @@ func (d *document) loadObjStm(stm int) (*objStream, error) {
 	if !ok || st.Dict["Type"] != Name("ObjStm") {
 		return nil, errors.New("not a /Type /ObjStm stream")
 	}
-	data, err := decodeStream(st)
+	data, err := d.decode(st)
 	if err != nil {
 		return nil, err
 	}
@@ -104,9 +105,20 @@ func (d *document) loadObjStm(stm int) (*objStream, error) {
 	return s, nil
 }
 
-// decodeStream applies the stream's filters. Only /FlateDecode is supported, with the predictors
-// of its /DecodeParms (§7.4.4).
-func decodeStream(s Stream) ([]byte, error) {
+// decode decodes s and charges its output to the document's budget, which object streams draw on
+// for as long as they stay cached.
+func (d *document) decode(s Stream) ([]byte, error) {
+	data, err := decodeStream(s, maxDecoded-d.decoded)
+	if err != nil {
+		return nil, err
+	}
+	d.decoded += len(data)
+	return data, nil
+}
+
+// decodeStream applies the stream's filters, failing if any stage outputs more than limit bytes.
+// Only /FlateDecode is supported, with the predictors of its /DecodeParms (§7.4.4).
+func decodeStream(s Stream, limit int) ([]byte, error) {
 	var filters, parms Array
 	switch f := s.Dict["Filter"].(type) {
 	case nil:
@@ -132,13 +144,13 @@ func decodeStream(s Stream) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("FlateDecode: %w", err)
 		}
-		out, err := io.ReadAll(io.LimitReader(zr, maxDecoded+1))
+		out, err := io.ReadAll(io.LimitReader(zr, int64(limit)+1))
 		// Producers often truncate the zlib trailer; keep what decoded and let parsing judge it.
 		if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
 			return nil, fmt.Errorf("FlateDecode: %w", err)
 		}
-		if len(out) > maxDecoded {
-			return nil, fmt.Errorf("FlateDecode: output exceeds %d bytes", maxDecoded)
+		if len(out) > limit {
+			return nil, fmt.Errorf("decoded streams exceed %d bytes", maxDecoded)
 		}
 		var p Dict
 		if i < len(parms) {

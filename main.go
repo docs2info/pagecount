@@ -1,4 +1,4 @@
-// hello: prints the page count of a PDF. Reads one file, sends nothing anywhere.
+// pagecount: prints the page count of a PDF. Reads one file, sends nothing anywhere.
 package main
 
 import (
@@ -10,7 +10,7 @@ import (
 
 func main() {
 	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: hello FILE.pdf")
+		fmt.Fprintln(os.Stderr, "usage: pagecount FILE.pdf")
 		os.Exit(2)
 	}
 	b, err := os.ReadFile(os.Args[1])

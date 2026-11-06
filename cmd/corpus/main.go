@@ -1,5 +1,5 @@
-// corpus compares hello's page count with poppler's pdfinfo across a directory of PDFs. It writes
-// one TSV row per file and prints a summary: agree, refused (grouped by error), disagree.
+// corpus compares pagecount's page count with poppler's pdfinfo across a directory of PDFs. It
+// writes one TSV row per file and prints a summary: agree, refused (grouped by error), disagree.
 //
 //	go run ./cmd/corpus [-o corpus.tsv] DIR
 package main
@@ -24,13 +24,13 @@ import (
 	"github.com/docs2info/pagecount/internal/pdf"
 )
 
-// row is one file's result. helloCount and pdfinfoCount are -1 when absent. On a count mismatch
-// CountPages returns the walked count with its error; that count is kept.
+// row is one file's result. pagecountCount and pdfinfoCount are -1 when absent. On a count
+// mismatch CountPages returns the walked count with its error; that count is kept.
 type row struct {
-	file         string
-	helloCount   int
-	helloErr     string
-	pdfinfoCount int
+	file           string
+	pagecountCount int
+	pagecountErr   string
+	pdfinfoCount   int
 }
 
 func main() {
@@ -74,16 +74,16 @@ func run(dir, pdfinfo string, timeout time.Duration) ([]row, error) {
 		if err != nil {
 			rel = path
 		}
-		r := row{file: rel, helloCount: -1, pdfinfoCount: -1}
+		r := row{file: rel, pagecountCount: -1, pdfinfoCount: -1}
 		if b, err := os.ReadFile(path); err != nil {
-			r.helloErr = err.Error()
+			r.pagecountErr = err.Error()
 		} else if n, err := pdf.CountPages(b); err != nil {
-			r.helloErr = err.Error()
+			r.pagecountErr = err.Error()
 			if n > 0 {
-				r.helloCount = n
+				r.pagecountCount = n
 			}
 		} else {
-			r.helloCount = n
+			r.pagecountCount = n
 		}
 		r.pdfinfoCount = pdfinfoPages(pdfinfo, path, timeout)
 		fmt.Fprintf(os.Stderr, "%d\t%s\n", len(rows)+1, rel)
@@ -117,12 +117,12 @@ func parsePages(out []byte) int {
 	return -1
 }
 
-func (r row) refused() bool  { return r.helloErr != "" }
-func (r row) agree() bool    { return !r.refused() && r.helloCount == r.pdfinfoCount }
+func (r row) refused() bool  { return r.pagecountErr != "" }
+func (r row) agree() bool    { return !r.refused() && r.pagecountCount == r.pdfinfoCount }
 func (r row) disagree() bool { return !r.refused() && !r.agree() }
 
 func (r row) tsv() string {
-	return strings.Join([]string{clean(r.file), count(r.helloCount), clean(r.helloErr),
+	return strings.Join([]string{clean(r.file), count(r.pagecountCount), clean(r.pagecountErr),
 		count(r.pdfinfoCount)}, "\t")
 }
 
@@ -143,7 +143,7 @@ func writeTSV(path string, rows []row) (err error) {
 	}
 	defer func() { err = errors.Join(err, f.Close()) }()
 	w := bufio.NewWriter(f)
-	fmt.Fprintln(w, "file\thello_count\thello_error\tpdfinfo_count")
+	fmt.Fprintln(w, "file\tpagecount_count\tpagecount_error\tpdfinfo_count")
 	for _, r := range rows {
 		fmt.Fprintln(w, r.tsv())
 	}
@@ -160,7 +160,7 @@ func summarize(w io.Writer, rows []row) {
 	for _, r := range rows {
 		switch {
 		case r.refused():
-			refused[r.helloErr]++
+			refused[r.pagecountErr]++
 		case r.agree():
 			agree++
 		default:
@@ -186,7 +186,7 @@ func summarize(w io.Writer, rows []row) {
 	}
 	fmt.Fprintf(w, "disagree\t%d\n", len(disagree))
 	if len(disagree) > 0 {
-		fmt.Fprintln(w, "  file\thello_count\thello_error\tpdfinfo_count")
+		fmt.Fprintln(w, "  file\tpagecount_count\tpagecount_error\tpdfinfo_count")
 		for _, r := range disagree {
 			fmt.Fprintln(w, "  "+r.tsv())
 		}
